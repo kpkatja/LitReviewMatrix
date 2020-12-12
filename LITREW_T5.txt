@@ -1,0 +1,281 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Mar 29 02:41:26 2020
+
+@author: katja
+"""
+
+import nltk
+import numpy as np
+import pandas as pd
+import re
+import os
+import codecs
+from sklearn import feature_extraction
+from matplotlib import pyplot as plt
+from sklearn.cluster import AgglomerativeClustering
+import scipy.cluster.hierarchy as sch
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from scipy.cluster.hierarchy import ward, dendrogram
+from sklearn.cluster import KMeans
+from sklearn.externals import joblib
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.decomposition import PCA
+from sklearn.datasets import load_files
+import matplotlib.gridspec as gridspec
+
+
+##nlp = spacy.load("en_core_web_sm", disable=['parser', 'ner'])
+
+#################
+##MAIN SETTINGS  
+address="C:\\Users\\Katja.Rodionova\\Desktop\\SCRIPTS\\LIT_Charts\\LReferences_graphs_example.xlsx"
+data1 = pd.read_excel(address,'Sheet1')
+
+#Marking all sources before selected date as "before"
+data1[['Year']] = data1[['Year']].astype(int)
+data1['Year'][data1['Year']<1997]=1998
+
+#Source types and color codes; chapter/topic names names
+#unfinished do not adjust itself to different number of topics and source classes
+sourceTypes=8
+sourceCl=["Journal","Presentation","Book","Gvt report","Ind report","Lecture","Dissertation","Web-page"]
+sourseClColors=["darkgreen","turquoise","red","grey","darkgrey","purple","blue","orange"]
+topicTypes=5
+topicNames=["Introduction","Methodology","Overview of UK megaprojects","Leadership and innovation in procurement","Digital innovation"]
+sections=6
+
+#Figures' sizes (change to adjust to the contents)
+xfig1=50
+yfig1=35
+
+xfig2=50
+yfig2=45
+
+
+##################
+##REST OF THE CODE
+#Source types lists
+sc1=[]
+sc2=[]
+sc3=[]
+sc4=[]
+sc5=[]
+sc6=[]
+sc7=[]
+sc8=[]
+
+
+#Topic and sections lists
+t1=[]
+t2=[]
+t3=[]
+t4=[]
+t5=[]
+s1=[]
+s2=[]
+s3=[]
+s4=[]
+s5=[]
+s6=[]
+
+
+
+#Sorting
+for i in range(len(data1)):
+    if(data1.loc[i,['SourceCl']][0]==1):
+        sc1.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==2):
+        sc2.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==3):
+        sc3.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==4):
+        sc4.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==5):
+        sc5.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==6):
+        sc6.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==7):
+        sc7.append(data1.iloc[i])
+    if(data1.loc[i,['SourceCl']][0]==8):
+        sc8.append(data1.iloc[i])
+
+        
+    if(data1.loc[i,['T1']][0]==1):
+        t1.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['T2']][0]==1):
+        t2.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['T3']][0]==1):
+        t3.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['T4']][0]==1):
+        t4.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['T5']][0]==1):
+        t5.append(data1.loc[i,['RefNro']][0])
+        
+    if(data1.loc[i,['S1']][0]==1):
+        s1.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['S2']][0]==1):
+        s2.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['S3']][0]==1):
+        s3.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['S4']][0]==1):
+        s4.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['S5']][0]==1):
+        s5.append(data1.loc[i,['RefNro']][0])
+    if(data1.loc[i,['S6']][0]==1):
+        s6.append(data1.loc[i,['RefNro']][0])
+
+dcs1=pd.DataFrame(sc1)
+dcs2=pd.DataFrame(sc2)
+dcs3=pd.DataFrame(sc3)
+dcs4=pd.DataFrame(sc4)
+dcs5=pd.DataFrame(sc5)
+dcs6=pd.DataFrame(sc6)
+dcs7=pd.DataFrame(sc7)
+dcs8=pd.DataFrame(sc8)
+
+#topics chart
+#arcticles per topic
+t=[len(t1),len(t2),len(t3),len(t4),len(t5)]
+#article list by topic
+acticleTopics=[",".join(t1),",".join(t2),",".join(t3),",".join(t4),",".join(t5)]
+s=pd.Series([len(s1),len(s2),len(s3),len(s4),len(s5),len(s6)],[" ".join(s1)," ".join(s2)," ".join(s3)," ".join(s4)," ".join(s5)," ".join(s6)])
+topics=pd.DataFrame()
+sections=pd.DataFrame(columns=['Qty', 'Titles'])
+
+topics=topics.append(t,ignore_index=True)    
+   
+#print(topics)
+
+#grouping sources by year and source type
+dcs1S=dcs1.groupby(['Classificator','Year']).size().reset_index()
+dcs1G=dcs1.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs2S=dcs2.groupby(['Classificator','Year']).size().reset_index()
+dcs2G=dcs2.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs3S=dcs3.groupby(['Classificator','Year']).size().reset_index()
+dcs3G=dcs3.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs4S=dcs4.groupby(['Classificator','Year']).size().reset_index()
+dcs4G=dcs4.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs5S=dcs5.groupby(['Classificator','Year']).size().reset_index()
+dcs5G=dcs5.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs6S=dcs6.groupby(['Classificator','Year']).size().reset_index()
+dcs6G=dcs6.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs7S=dcs7.groupby(['Classificator','Year']).size().reset_index()
+dcs7G=dcs7.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+dcs8S=dcs8.groupby(['Classificator','Year']).size().reset_index()
+dcs8G=dcs8.groupby(['Classificator','Year']).agg({'RefNro': lambda x: ' '.join(x)}).reset_index()
+
+
+
+df1=data1.groupby(['Classificator','Year']).size().reset_index()
+#df2=data1.groupby(['Database','Year']).size().reset_index()
+
+xTicks=[]
+
+for i in range(0,(df1['Year'].max()-df1['Year'].min())+1):
+    xTicks.append(df1['Year'].min()+i)
+
+yTicks=[]
+yTicks.append(df1['Classificator'][0])
+for i in range(1,len(df1[['Classificator']])):
+    if(df1['Classificator'][i]!=yTicks[len(yTicks)-1]):
+        yTicks.append(df1['Classificator'][i])
+
+#yTicks2=[]
+#yTicks2.append(df2['Database'][0])
+#for i in range(1,len(df2['Database'])):
+    #if(df2['Database'][i]!=yTicks2[len(yTicks2)-1]):
+        #yTicks2.append(df2['Database'][i])
+fig = plt.figure(figsize=(xfig1, yfig1))
+gs = gridspec.GridSpec(nrows=1, ncols=1)
+
+
+# First axes
+ax0 = fig.add_subplot(gs[0])
+ax0.set_title('Literature by source types', fontsize = 50)
+ax0.set_xticks(xTicks, minor=False)
+ax0.set_xticklabels(xTicks, fontdict=None, minor=False)
+ax0.scatter(dcs1S['Year']-0.4, dcs1S['Classificator'],s=500*dcs1S[[0]], c=sourseClColors[0])
+ax0.scatter(dcs2S['Year']-0.3, dcs2S['Classificator'],s=500*dcs2S[[0]], c=sourseClColors[1], marker = 's')
+ax0.scatter(dcs3S['Year']-0.2, dcs3S['Classificator'],s=500*dcs3S[[0]], c=sourseClColors[2])
+ax0.scatter(dcs4S['Year']-0.1, dcs4S['Classificator'],s=500*dcs4S[[0]], c=sourseClColors[3])
+ax0.scatter(dcs5S['Year'], dcs5S['Classificator'],s=500*dcs5S[[0]], c=sourseClColors[4], marker = '^')
+ax0.scatter(dcs6S['Year']+0.1, dcs6S['Classificator'],s=500*dcs6S[[0]], c=sourseClColors[5], marker = 's')
+ax0.scatter(dcs7S['Year']+0.2, dcs7S['Classificator'],s=500*dcs7S[[0]], c=sourseClColors[6], marker = '^')
+ax0.scatter(dcs8S['Year']+0.3, dcs8S['Classificator'],s=500*dcs8S[[0]], c=sourseClColors[7])
+
+
+
+
+def addtext1(ax, props):
+    ax.text(dcs1G.Year.iat[i]-0.3,dcs1G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[0])
+for i, txt in enumerate(dcs1G.RefNro):
+    addtext1(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext2(ax, props):
+    ax.text(dcs2G.Year.iat[i]-0.2,dcs2G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[1])
+for i, txt in enumerate(dcs2G.RefNro):
+    addtext2(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext3(ax, props):
+    ax.text(dcs3G.Year.iat[i]-0.1,dcs3G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[2])
+for i, txt in enumerate(dcs3G.RefNro):
+    addtext3(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext4(ax, props):
+    ax.text(dcs4G.Year.iat[i],dcs4G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[3])
+for i, txt in enumerate(dcs4G.RefNro):
+    addtext4(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext5(ax, props):
+    ax.text(dcs5G.Year.iat[i]+0.1,dcs5G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[4])
+for i, txt in enumerate(dcs5G.RefNro):
+    addtext5(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext6(ax, props):
+    ax.text(dcs6G.Year.iat[i]+0.2,dcs6G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[5])
+for i, txt in enumerate(dcs6G.RefNro):
+    addtext6(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext7(ax, props):
+    ax.text(dcs7G.Year.iat[i]+0.5,dcs7G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[6])
+for i, txt in enumerate(dcs7G.RefNro):
+    addtext7(ax0, {'ha': 'left', 'va': 'bottom'})
+def addtext8(ax, props):
+    ax.text(dcs8G.Year.iat[i]+0.4,dcs8G.Classificator.iat[i], txt, props, fontsize=30, rotation=45, color=sourseClColors[7])
+for i, txt in enumerate(dcs8G.RefNro):
+    addtext8(ax0, {'ha': 'left', 'va': 'bottom'})
+
+
+#uwc[1].scatter(df2['Year'], df2['Database'],s=50+400*df2[[0]])#, s=area, c=colors, alpha=0.5
+##uwc[0].legend(loc="upper left", fontsize=8)
+plt.xlim(right=2022, left=1997)
+plt.rcParams['xtick.labelsize'] = 40
+plt.rcParams['ytick.labelsize'] =40
+plt.setp( ax0.xaxis.get_majorticklabels(), rotation=45 , fontsize = 50)
+plt.setp( ax0.yaxis.get_majorticklabels(), fontsize = 50)
+#plt.tight_layout()
+plt.grid(True)
+plt.show()
+
+
+from matplotlib import pyplot as plt1
+fig1 = plt1.figure(figsize=(xfig2, yfig2))
+gs = fig1.add_gridspec(len(sourceCl)+len(topicNames)+2,1)
+
+sumCl=len(data1)
+sourceQt=[len(dcs1),len(dcs2),len(dcs3),len(dcs4),len(dcs5),len(dcs6),len(dcs7),len(dcs8)]
+sourceQtPerc=[str(int(100*len(dcs1)/sumCl))+"%",str(int(100*len(dcs2)/sumCl))+"%",str(int(100*len(dcs3)/sumCl))+"%",str(int(100*len(dcs4)/sumCl))+"%",str(int(100*len(dcs5)/sumCl))+"%",str(int(100*len(dcs6)/sumCl))+"%",str(int(100*len(dcs7)/sumCl))+"%",str(int(100*len(dcs8)/sumCl))+"%"]
+
+#Percent shares of source types
+ax1 = fig1.add_subplot(gs[1:len(sourceCl),0])
+ax1.set_title('Literature by type, %', fontsize = 50)
+ax1.barh(sourceCl,sourceQt, color=sourseClColors)
+for i, v in enumerate(sourceQt):
+    ax1.text(v+0.3, i-0.1, sourceQtPerc[i], color='black',fontweight="bold", fontsize = 28)
+
+#Sources by topic
+ax2 = fig1.add_subplot(gs[len(sourceCl)+2:, 0])
+ax2.set_title('Literature by sectors', fontsize = 50)
+ax2.barh(topicNames, t, color="black")
+for i, v in enumerate(t):
+    ax2.text(0.3, i-0.1, acticleTopics[i], color='white',fontweight="bold", fontsize = 28)
+    
+plt1.show()
+
+
